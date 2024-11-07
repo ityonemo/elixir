@@ -1062,6 +1062,50 @@ defmodule ExUnitTest do
     assert output =~ "2 tests, 0 failures, 2 excluded\n"
   end
 
+  test "Adds test_pid for to test context for formatters" do
+    Process.register(self(), :adds_test_pid_for_formatter)
+
+    defmodule AddsTestPid do
+      use ExUnit.Case
+
+      test "my test" do
+        send(:adds_test_pid_for_formatter, {:test_pid, self()})
+        assert true
+      end
+    end
+
+    defmodule TestPidFormatter do
+      use GenServer
+
+      def init(_opts) do
+        root_dir = File.cwd!()
+        state = %{root_dir: root_dir, test_failures: [], suite_failed?: false}
+        {:ok, state}
+      end
+
+      def handle_cast({:test_finished, info}, state) do
+        send(:adds_test_pid_for_formatter, {:test_info, info})
+        {:noreply, state}
+      end
+
+      def handle_cast(_, state) do
+        {:noreply, state}
+      end
+    end
+
+    configure_and_reload_on_exit([])
+
+    ExUnit.configure(formatters: [TestPidFormatter])
+
+      capture_io(fn ->
+        assert ExUnit.run() == %{total: 1, failures: 0, excluded: 0, skipped: 0}
+      end)
+
+    assert_receive {:test_pid, test_pid}
+    assert_receive {:test_info, info}
+    assert info.test_pid == test_pid
+  end
+
   test "tests are run in compile order (FIFO)" do
     defmodule FirstTestFIFO do
       use ExUnit.Case

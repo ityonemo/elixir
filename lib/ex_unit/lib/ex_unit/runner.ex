@@ -460,7 +460,7 @@ defmodule ExUnit.Runner do
     receive do
       {^test_pid, :test_finished, test} ->
         Process.demonitor(test_ref, [:flush])
-        test
+        Map.put(test, :test_pid, test_pid)
 
       {:DOWN, ^test_ref, :process, ^test_pid, error} ->
         %{test | state: failed({:EXIT, test_pid}, error, [])}
